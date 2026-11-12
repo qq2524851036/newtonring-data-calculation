@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>牛顿环 D²‑K 线性拟合（一次性粘贴导入）</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: "Microsoft YaHei", sans-serif;
+        }
+        body {
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h2.main-title {
+            font-size: 2em;
+            margin:10px 0;
+        }
+        .info-note {
+            color:#444;
+            font-size:1em;
+            line-height:1.4;
+        }
+        table#dataTable {
+            border-collapse: collapse;
+            margin: 10px 0;
+            table-layout: fixed;
+        }
+        th, td {
+            border: 1px solid #999;
+            padding: 6px 4px;
+            text-align: center;
+            overflow:hidden;
+        }
+        input {
+            width: 96%;
+            padding: 3px;
+            font-size: 14px;
+        }
+        .paste-wrap{
+            margin:10px 0;
+        }
+        .paste-wrap textarea{
+            width:100%;
+            height:90px;
+            font-size:13px;
+            padding:6px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        .result-box {
+            border: 1px solid #666;
+            padding: 12px;
+            background: #f8f8f8;
+            margin-top:0;
+            margin-bottom:8px;
+            font-size:16px;
+        }
+        .result-box h4{
+            margin-top:0;
+            margin-bottom:0;
+        }
+        #resultText{
+            line-height:1.4;
+        }
+        #resultTable{
+            width:100%;
+            margin:6px 0;
+            border-collapse:collapse;
+        }
+        #resultTable td{
+            border:1px solid #aaa;
+            padding:4px 8px;
+            text-align:left;
+        }
+        #resultTable td.mid-sep {
+            border-left:3px solid #333;
+        }
+        .red-cell {
+            color:#d62728;
+        }
+        .main-layout{
+            display:flex;
+            gap:20px;
+            align-items:flex-start;
+        }
+        .table-wrap{
+            flex-shrink:0;
+        }
+        .chart-container-wrap{
+            flex:1;
+            display:flex;
+            flex-direction:column;
+            margin-top:10px;
+        }
+        .canvas-wrap {
+            width:100%;
+            height: 500px;
+        }
+        #dataTable th:nth-child(1), #dataTable td:nth-child(1) { width:70px; }
+        #dataTable th:nth-child(2), #dataTable td:nth-child(2) { width:70px; }
+        #dataTable th:nth-child(3), #dataTable td:nth-child(3) { width:120px; }
+        #dataTable th:nth-child(4), #dataTable td:nth-child(4) { width:120px; }
+        #dataTable th:nth-child(5), #dataTable td:nth-child(5) { width:105px; }
+        #dataTable th:nth-child(6), #dataTable td:nth-child(6) { width:105px; }
+        #dataTable th:nth-child(7), #dataTable td:nth-child(7) { width:105px; }
+    </style>
+</head>
+<body>
+    <h2 class="main-title">牛顿环 D²‑K 线性拟合</h2>
+    <div class="info-note">
+        波长 λ = 589.3 nm，仪器误差 Δ仪 = 0.004 mm<br>
+        公式：$D_K^2 = a + bK,\quad b=4\lambda R$；残差 = 实测D² − 拟合D²
+    </div>
+
+    <div class="paste-wrap">
+        <div>一次性粘贴导入（格式：级次K  x左  x右，空格/制表符分隔，一行一条）：</div>
+        <textarea id="pasteAll" placeholder="示例：
+11 32.125 28.330
+12 32.240 28.212
+13 32.351 28.100
+"></textarea>
+        <br>
+        <button onclick="importAllData()">粘贴导入表格</button>
+    </div>
+
+    <div class="main-layout">
+        <div class="table-wrap">
+            <table id="dataTable">
+                <thead>
+                    <tr>
+                        <th>序号</th>
+                        <th>K</th>
+                        <th>x左 (mm)</th>
+                        <th>x右 (mm)</th>
+                        <th>D (mm)</th>
+                        <th>D² (mm²)</th>
+                        <th>残差(mm²)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+            <div>
+                <button onclick="addRow()">增加一行</button>
+                <button onclick="calcAll()">计算并绘图</button>
+                <button onclick="clearAll()">清空数据</button>
+            </div>
+        </div>
+        <div class="chart-container-wrap">
+            <div class="result-box">
+                <h4>计算结果</h4>
+                <div id="resultText">
+                    <table id="resultTable">
+                        <tbody>
+                            <tr>
+                                <td>截距 a</td>
+                                <td>‑</td>
+                                <td class="mid-sep">斜率 b</td>
+                                <td>‑</td>
+                            </tr>
+                            <tr>
+                                <td>相关系数 r</td>
+                                <td>‑</td>
+                                <td class="mid-sep"><span class="red-cell">曲率半径 R</span></td>
+                                <td class="red-cell">‑</td>
+                            </tr>
+                            <tr>
+                                <td>u_A(b)</td>
+                                <td>‑</td>
+                                <td class="mid-sep">u_B(b)</td>
+                                <td>‑</td>
+                            </tr>
+                            <tr>
+                                <td>u(b)</td>
+                                <td>‑</td>
+                                <td class="mid-sep"><span class="red-cell">u(R)</span></td>
+                                <td class="red-cell">‑</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="canvas-wrap">
+                <canvas id="fitChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const lambda = 589.3e-6;
+        const deltaInstrument = 0.004;
+        let chart = null;
+        const initResultHtml = `
+                    <table id="resultTable">
+                        <tbody>
+                            <tr>
+                                <td>截距 a</td>
+                                <td>‑</td>
+                                <td class="mid-sep">斜率 b</td>
+                                <td>‑</td>
+                            </tr>
+                            <tr>
+                                <td>相关系数 r</td>
+                                <td>‑</td>
+                                <td class="mid-sep"><span class="red-cell">曲率半径 R</span></td>
+                                <td class="red-cell">‑</td>
+                            </tr>
+                            <tr>
+                                <td>u_A(b)</td>
+                                <td>‑</td>
+                                <td class="mid-sep">u_B(b)</td>
+                                <td>‑</td>
+                            </tr>
+                            <tr>
+                                <td>u(b)</td>
+                                <td>‑</td>
+                                <td class="mid-sep"><span class="red-cell">u(R)</span></td>
+                                <td class="red-cell">‑</td>
+                            </tr>
+                        </tbody>
+                    </table>`;
+
+        function initRows(n=5) {
+            const tbody = document.querySelector("#dataTable tbody");
+            tbody.innerHTML = "";
+            for(let i=0;i<n;i++) addRow();
+        }
+
+        function addRow(){
+            const tbody = document.querySelector("#dataTable tbody");
+            const r = document.createElement("tr");
+            r.innerHTML = `
+                <td>${tbody.rows.length+1}</td>
+                <td><input type="number" class="k"></td>
+                <td><input type="number" class="xleft"></td>
+                <td><input type="number" class="xright"></td>
+                <td class="d">-</td>
+                <td class="d2">-</td>
+                <td class="residual">-</td>
+            `;
+            tbody.appendChild(r);
+        }
+
+        function clearAll(){
+            initRows(5);
+            document.getElementById("pasteAll").value = "";
+            document.getElementById("resultText").innerHTML = initResultHtml;
+            if(chart) chart.destroy();
+            chart = null;
+        }
+
+        //===== 新增：一次性粘贴导入，和可疑分析工具格式完全一致 =====
+        function importAllData(){
+            const ta = document.getElementById("pasteAll");
+            const text = ta.value.trim();
+            if(!text) return;
+            //清空表格，保留粘贴框
+            const tbody = document.querySelector("#dataTable tbody");
+            tbody.innerHTML = "";
+            const lines = text.split(/\r?\n/).map(s=>s.trim()).filter(s=>s);
+            for(let line of lines){
+                const arr = line.split(/\s+/);
+                if(arr.length>=3){
+                    addRow();
+                    const lastRow = tbody.lastElementChild;
+                    lastRow.querySelector('.k').value = arr[0];
+                    lastRow.querySelector('.xleft').value = arr[1];
+                    lastRow.querySelector('.xright').value = arr[2];
+                }
+            }
+            ta.value="";
+        }
+
+        function readData(){
+            const rows = document.querySelectorAll("#dataTable tbody tr");
+            const data = [];
+            for(const tr of rows){
+                const K = parseFloat(tr.querySelector(".k").value);
+                const xl = parseFloat(tr.querySelector(".xleft").value);
+                const xr = parseFloat(tr.querySelector(".xright").value);
+                if(isNaN(K)||isNaN(xl)||isNaN(xr)) continue;
+                const D = Math.abs(xl - xr);
+                const D2 = D*D;
+                tr.querySelector(".d").innerText = D.toFixed(4);
+                tr.querySelector(".d2").innerText = D2.toFixed(6);
+                tr.querySelector(".residual").innerText = "-";
+                data.push({K, D, D2, domTr:tr});
+            }
+            return data;
+        }
+
+        function linearFit(xarr, yarr){
+            const n = xarr.length;
+            let sumX=0,sumY=0,sumXY=0,sumX2=0,sumY2=0;
+            for(let i=0;i<n;i++){
+                sumX += xarr[i];
+                sumY += yarr[i];
+                sumXY += xarr[i]*yarr[i];
+                sumX2 += xarr[i]*xarr[i];
+                sumY2 += yarr[i]*yarr[i];
+            }
+            const xmean = sumX / n;
+            const ymean = sumY / n;
+            const Lxx = sumX2 - n*xmean*xmean;
+            const Lyy = sumY2 - n*ymean*ymean;
+            const Lxy = sumXY - n*xmean*ymean;
+            const b = Lxy / Lxx;
+            const a = ymean - b * xmean;
+            const r = Lxy / Math.sqrt(Lxx * Lyy);
+            let sumRes2 = 0;
+            const yhat = [];
+            for(let i=0;i<n;i++){
+                const yh = a + b*xarr[i];
+                yhat.push(yh);
+                sumRes2 += (yarr[i]-yh)**2;
+            }
+            const sigma = Math.sqrt(sumRes2/(n-2));
+            const uA_b = sigma / Math.sqrt(Lxx);
+            return {a,b,r,sigma,sumRes2,Lxx,xmean,ymean,yhat,n, uA_b};
+        }
+
+        function twoSignificantDigits(x) {
+            if (!isFinite(x) || x <= 0) {
+                return { val: 0, decimalPlaces: 0 };
+            }
+            const sciStr = x.toExponential(1);
+            const [mantissaStr, expStr] = sciStr.split('e');
+            let mant = parseFloat(mantissaStr);
+            const exp = parseInt(expStr, 10);
+            const uVal = mant * (10 ** exp);
+            const place = exp - 1;
+            const decimalPlaces = (place < 0) ? -place : 0;
+            return { val: uVal, decimalPlaces: decimalPlaces };
+        }
+
+        function calcAll(){
+            const raw = readData();
+            if(raw.length<3){
+                alert("有效数据至少需要3组！");
+                return;
+            }
+            const Ks = raw.map(d=>d.K);
+            const D2s = raw.map(d=>d.D2);
+            const fit = linearFit(Ks,D2s);
+            const {a,b,r, sigma, Lxx, n, uA_b, xmean, yhat} = fit;
+            const residualList=[];
+            for(let i=0;i<n;i++){
+                const res = D2s[i] - yhat[i];
+                raw[i].domTr.querySelector(".residual").innerText = res.toFixed(6);
+                residualList.push(res);
+            }
+            let sumTerm = 0;
+            for(let i=0;i<n;i++){
+                const ki = Ks[i];
+                const di = raw[i].D;
+                const term = (ki - xmean)*di*deltaInstrument;
+                sumTerm += term*term;
+            }
+            const uB_b = Math.sqrt(8/3) * Math.sqrt(sumTerm) / Lxx;
+            const u_b = Math.sqrt(uA_b**2 + uB_b**2);
+            const R = b/(4*lambda);
+            const u_R = u_b/(4*lambda);
+            const uInfo = twoSignificantDigits(u_R);
+            const uRVal = uInfo.val;
+            const dp = uInfo.decimalPlaces;
+            const Rstr = R.toFixed(dp);
+            const uRstr = uRVal.toFixed(dp);
+            const items = [
+                {name:"截距 a", val:`${a.toFixed(6)} mm²`, red:false},
+                {name:"斜率 b", val:`${b.toFixed(6)} mm²`, red:false},
+                {name:"相关系数 r", val:`${r.toFixed(6)}`, red:false},
+                {name:"曲率半径 R", val:`${Rstr} mm`, red:true},
+                {name:"u_A(b)", val:`${uA_b.toFixed(8)} mm²`, red:false},
+                {name:"u_B(b)", val:`${uB_b.toFixed(8)} mm²`, red:false},
+                {name:"u(b)", val:`${u_b.toFixed(8)} mm²`, red:false},
+                {name:"u(R)", val:`${uRstr} mm (2位有效数字)`, red:true}
+            ];
+            let html = `<table id="resultTable"><tbody>`;
+            for(let i=0;i<items.length;i+=2){
+                const left = items[i];
+                const right = items[i+1];
+                let leftNameHtml = left.red ? `<span class="red-cell">${left.name}</span>` : left.name;
+                const lTdClass = left.red ? 'class="red-cell"' : '';
+                let rightNameHtml = right.red ? `<span class="red-cell">${right.name}</span>` : right.name;
+                const rTdClass = right.red ? 'class="red-cell"' : '';
+                html += `<tr>
+                    <td ${lTdClass}>${leftNameHtml}</td>
+                    <td ${lTdClass}>${left.val}</td>
+                    <td class="mid-sep" ${rTdClass}>${rightNameHtml}</td>
+                    <td ${rTdClass}>${right.val}</td>
+                </tr>`;
+            }
+            html += `</tbody></table>`;
+            document.getElementById("resultText").innerHTML = html;
+            const ctx = document.getElementById("fitChart").getContext("2d");
+            if(chart) chart.destroy();
+            const kMin = Math.min(...Ks);
+            const kMax = Math.max(...Ks);
+            const fitPoints = [ {x: kMin, y: a + b * kMin}, {x: kMax, y: a + b * kMax} ];
+            const allPoints=[];
+            for(let i=0;i<n;i++){
+                allPoints.push({x:Ks[i], y:D2s[i]});
+            }
+            chart = new Chart(ctx,{
+                type:"scatter",
+                data:{
+                    datasets:[
+                        {label:"实验点",data: allPoints,backgroundColor:"#f44336",pointRadius:7},
+                        {label:`拟合直线 D² = ${a.toFixed(4)} + ${b.toFixed(4)}·K`,type:"line",data: fitPoints,borderColor:"#2196F3",fill:false,borderWidth:2.5,pointRadius:0}
+                    ]
+                },
+                options:{
+                    responsive:true,
+                    maintainAspectRatio:false,
+                    plugins:{title:{display:true,text:"牛顿环 D²‑K 线性拟合图",font:{size:16}},legend:{display:true}},
+                    scales:{
+                        x:{title:{display:true, text:"K（环序数）"},grid:{color:"#ddd"}},
+                        y:{title:{display:true, text:"D² / mm²"},grid:{color:"#ddd"}}
+                    }
+                }
+            })
+        }
+
+        window.onload = function(){
+            initRows(5);
+            document.getElementById("resultText").innerHTML = initResultHtml;
+        };
+    </script>
+</body>
+</html>
